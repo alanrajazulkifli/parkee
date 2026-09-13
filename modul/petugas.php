@@ -7,23 +7,6 @@ date_default_timezone_set('Asia/Jakarta');
 
 $message = "";
 
-if (isset($_POST['simpan_masuk'])) {
-    $plat_nomor = strtoupper(trim($_POST['plat_nomor']));
-    $jenis_kendaraan = $_POST['jenis_kendaraan'];
-    $waktu_masuk = date('Y-m-d') . ' ' . $_POST['waktu_masuk'] . ':00';
-
-    $stmt = mysqli_prepare($koneksi, "INSERT INTO kendaraan (plat_nomor, jenis_kendaraan, waktu_masuk, status) VALUES (?, ?, ?, 'Parkir')");
-    mysqli_stmt_bind_param($stmt, "sss", $plat_nomor, $jenis_kendaraan, $waktu_masuk);
-    
-    if (mysqli_stmt_execute($stmt)) {
-        header("Location: petugas.php");
-        exit();
-    } else {
-        $message = "Gagal menyimpan data: " . mysqli_error($koneksi);
-    }
-    mysqli_stmt_close($stmt);
-}
-
 if (isset($_POST['proses_keluar'])) {
     $id_kendaraan = $_POST['id_kendaraan'];
     $waktu_keluar = date('Y-m-d H:i:s');
@@ -136,7 +119,7 @@ $total_keluar = mysqli_fetch_assoc($q_keluar)['total'] ?? 0;
         </div>
         
         <nav class="space-y-2">
-          <a href="#" class="flex items-center space-x-3 px-4 py-3 bg-[#3b82f6] text-white rounded-xl text-sm font-bold shadow-md shadow-blue-500/20 transition-all hover:translate-x-1">
+          <a href="inputpetugas.php" class="flex items-center space-x-3 px-4 py-3 bg-[#3b82f6] text-white rounded-xl text-sm font-bold shadow-md shadow-blue-500/20 transition-all hover:translate-x-1">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
             <span>Dashboard Petugas</span>
           </a>
@@ -195,64 +178,10 @@ $total_keluar = mysqli_fetch_assoc($q_keluar)['total'] ?? 0;
         </div>
 
         <?php if ($message != ""): ?>
-          <div class="p-4 bg-red-50 border border-red-200 text-red-700 text-sm font-medium rounded-xl flex items-center space-x-2">
-            <svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-            <span><?= $message; ?></span>
+          <div class="p-4 bg-red-50 border border-red-200 text-red-700 text-sm font-medium rounded-xl">
+            <?= htmlspecialchars($message); ?>
           </div>
         <?php endif; ?>
-        
-        <!-- Card Input Kendaraan -->
-        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 class="text-base font-bold text-slate-900 mb-5 flex items-center space-x-2">
-            <span>Input Kendaraan Parkir</span>
-          </h3>
-          
-          <form action="" method="POST">
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
-              
-              <div class="lg:col-span-3">
-                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Nomor Plat</label>
-                <input type="text" name="plat_nomor" required placeholder="B 1234 ABC" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm font-bold text-slate-900 uppercase transition-all" />
-              </div>
-
-              <div class="lg:col-span-4">
-                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Jenis Kendaraan</label>
-                <div class="grid grid-cols-3 gap-2">
-                  <label class="cursor-pointer">
-                    <input type="radio" name="jenis_kendaraan" value="Motor" checked class="peer hidden" />
-                    <div class="py-2.5 text-center border border-slate-300 rounded-xl text-xs font-bold text-slate-700 peer-checked:bg-[#fde2e4] peer-checked:border-pink-300 peer-checked:text-pink-900 transition-all hover:bg-slate-100">
-                      Motor
-                    </div>
-                  </label>
-                  <label class="cursor-pointer">
-                    <input type="radio" name="jenis_kendaraan" value="Mobil" class="peer hidden" />
-                    <div class="py-2.5 text-center border border-slate-300 rounded-xl text-xs font-bold text-slate-700 peer-checked:bg-[#fde2e4] peer-checked:border-pink-300 peer-checked:text-pink-900 transition-all hover:bg-slate-100">
-                      Mobil
-                    </div>
-                  </label>
-                  <label class="cursor-pointer">
-                    <input type="radio" name="jenis_kendaraan" value="Truk" class="peer hidden" />
-                    <div class="py-2.5 text-center border border-slate-300 rounded-xl text-xs font-bold text-slate-700 peer-checked:bg-[#fde2e4] peer-checked:border-pink-300 peer-checked:text-pink-900 transition-all hover:bg-slate-100">
-                      Truk
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              <div class="lg:col-span-3">
-                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Waktu Masuk</label>
-                <input type="time" name="waktu_masuk" value="<?= date('H:i'); ?>" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm font-bold text-slate-900 transition-all" />
-              </div>
-
-              <div class="lg:col-span-2">
-                <button type="submit" name="simpan_masuk" class="w-full py-2.5 px-4 bg-[#6366f1] hover:bg-indigo-600 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-indigo-500/20 active:scale-[0.98]">
-                  + Simpan Masuk
-                </button>
-              </div>
-
-            </div>
-          </form>
-        </div>
 
         <!-- Card Tabel Kendaraan -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
