@@ -4,7 +4,7 @@ session_start();
 include '../lib/koneksi.php';
 
 date_default_timezone_set('Asia/Jakarta');
-$today = date('Y-m-d');
+$bulan_ini = date('Y-m'); // Mengambil format Tahun-Bulan (Contoh: 2026-03)
 
 if (isset($_POST['hapus_kendaraan'])) {
     $id_kendaraan = $_POST['id_kendaraan'];
@@ -18,18 +18,20 @@ if (isset($_POST['hapus_kendaraan'])) {
     }
 }
 
+// Query Total Pemasukan per Bulan
 $q_pemasukan = mysqli_query($koneksi, "
     SELECT SUM(total_bayar) AS total 
     FROM pembayaran 
-    WHERE DATE(waktu_keluar) = '$today'
+    WHERE DATE_FORMAT(waktu_keluar, '%Y-%m') = '$bulan_ini'
 ");
 $d_pemasukan = mysqli_fetch_assoc($q_pemasukan);
 $totalPemasukan = $d_pemasukan['total'] ? $d_pemasukan['total'] : 0;
 
+// Query Total Kendaraan Keluar per Bulan
 $q_keluar = mysqli_query($koneksi, "
     SELECT COUNT(*) AS total 
     FROM pembayaran 
-    WHERE DATE(waktu_keluar) = '$today'
+    WHERE DATE_FORMAT(waktu_keluar, '%Y-%m') = '$bulan_ini'
 ");
 $d_keluar = mysqli_fetch_assoc($q_keluar);
 $totalKeluar = $d_keluar['total'];
@@ -61,7 +63,7 @@ $query_list = mysqli_query($koneksi, "
 
   <div class="flex h-screen overflow-hidden">
     
-    <!-- Sidebar Dimensi Diperbesar (w-72) & Diperbagus -->
+    <!-- Sidebar -->
     <aside class="w-72 bg-[#8ab6fd] flex flex-col justify-between p-6 hidden md:flex border-r border-blue-200/60 shadow-lg relative z-10">
       <div>
         <!-- Brand Title & Avatar -->
@@ -118,17 +120,17 @@ $query_list = mysqli_query($koneksi, "
         <!-- Summary Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           
-          <!-- Card Total Pemasukan -->
+          <!-- Card Total Pemasukan Per Bulan -->
           <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-blue-300 transition-all">
-            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Total Pemasukan (Hari Ini)</p>
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Total Pemasukan (Bulan Ini)</p>
             <h3 class="text-3xl font-black text-slate-900">
               Rp <?= number_format($totalPemasukan, 0, ',', '.'); ?>
             </h3>
           </div>
           
-          <!-- Card Kendaraan Keluar -->
+          <!-- Card Kendaraan Keluar Per Bulan -->
           <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-blue-300 transition-all">
-            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Total Kendaraan Keluar (Hari Ini)</p>
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Total Kendaraan Keluar (Bulan Ini)</p>
             <h3 class="text-3xl font-black text-slate-900">
               <?= $totalKeluar; ?>
             </h3>

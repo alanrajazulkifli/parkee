@@ -5,86 +5,18 @@ include '../lib/koneksi.php';
 
 date_default_timezone_set('Asia/Jakarta');
 
-$message = "";
-
-if (isset($_POST['proses_keluar'])) {
-    $id_kendaraan = $_POST['id_kendaraan'];
-    $waktu_keluar = date('Y-m-d H:i:s');
-
-    $stmt_get = mysqli_prepare($koneksi, "SELECT * FROM kendaraan WHERE id_kendaraan = ?");
-    mysqli_stmt_bind_param($stmt_get, "i", $id_kendaraan);
-    mysqli_stmt_execute($stmt_get);
-    $get_kendaraan = mysqli_stmt_get_result($stmt_get);
-    $data = mysqli_fetch_assoc($get_kendaraan);
-    mysqli_stmt_close($stmt_get);
-
-    if ($data) {
-        $masuk = strtotime($data['waktu_masuk']);
-        $keluar = strtotime($waktu_keluar);
-        $diff = $keluar - $masuk;
-        
-        $durasi_jam = ceil($diff / 3600);
-        if ($durasi_jam <= 0) $durasi_jam = 1;
-
-        $tarif = 2000;
-        if ($data['jenis_kendaraan'] == 'Mobil') {
-            $tarif = 5000;
-        } else if ($data['jenis_kendaraan'] == 'Truk') {
-            $tarif = 8000;
-        }
-
-        $total_bayar = $tarif * $durasi_jam;
-
-        $stmt_bayar = mysqli_prepare($koneksi, "INSERT INTO pembayaran (id_kendaraan, waktu_keluar, durasi_jam, total_bayar) VALUES (?, ?, ?, ?)");
-        mysqli_stmt_bind_param($stmt_bayar, "isii", $id_kendaraan, $waktu_keluar, $durasi_jam, $total_bayar);
-        
-        if (mysqli_stmt_execute($stmt_bayar)) {
-            $stmt_update = mysqli_prepare($koneksi, "UPDATE kendaraan SET status = 'Selesai' WHERE id_kendaraan = ?");
-            mysqli_stmt_bind_param($stmt_update, "i", $id_kendaraan);
-            mysqli_stmt_execute($stmt_update);
-            mysqli_stmt_close($stmt_update);
-
-            header("Location: petugas.php");
-            exit();
-        } else {
-            $message = "Gagal memproses pembayaran: " . mysqli_error($koneksi);
-        }
-        mysqli_stmt_close($stmt_bayar);
-    }
-}
-
-// Logical Search Filter
-$search = isset($_GET['search']) ? trim($_GET['search']) : '';
-
-if (!empty($search)) {
-    $query_sql = "
-        SELECT k.*, p.waktu_keluar, p.total_bayar 
-        FROM kendaraan k 
-        LEFT JOIN pembayaran p ON k.id_kendaraan = p.id_kendaraan 
-        WHERE k.plat_nomor LIKE ? OR k.jenis_kendaraan LIKE ?
-        ORDER BY k.id_kendaraan DESC
-    ";
-    $stmt_list = mysqli_prepare($koneksi, $query_sql);
-    $param_search = "%" . $search . "%";
-    mysqli_stmt_bind_param($stmt_list, "ss", $param_search, $param_search);
-    mysqli_stmt_execute($stmt_list);
-    $query_list = mysqli_stmt_get_result($stmt_list);
-} else {
-    $query_list = mysqli_query($koneksi, "
-        SELECT k.*, p.waktu_keluar, p.total_bayar 
-        FROM kendaraan k 
-        LEFT JOIN pembayaran p ON k.id_kendaraan = p.id_kendaraan 
-        ORDER BY k.id_kendaraan DESC
-    ");
-}
-
 // Query untuk data Statistik Dashboard
 $q_masuk = mysqli_query($koneksi, "SELECT COUNT(*) as total FROM kendaraan");
 $total_masuk = mysqli_fetch_assoc($q_masuk)['total'] ?? 0;
 
-
 $q_keluar = mysqli_query($koneksi, "SELECT COUNT(*) as total FROM kendaraan WHERE status = 'Selesai'");
 $total_keluar = mysqli_fetch_assoc($q_keluar)['total'] ?? 0;
+
+// Statistik Tambahan: Kendaraan yang masih parkir
+$total_parkir = $total_masuk - $total_keluar;
+
+// Query 5 Transaksi / Kendaraan Terbaru
+$q_terbaru = mysqli_query($koneksi, "SELECT plat_nomor, jenis_kendaraan, waktu_masuk, status FROM kendaraan ORDER BY id_kendaraan DESC LIMIT 5");
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -119,16 +51,16 @@ $total_keluar = mysqli_fetch_assoc($q_keluar)['total'] ?? 0;
         </div>
         
         <nav class="space-y-2">
-          <a href="inputpetugas.php" class="flex items-center space-x-3 px-4 py-3 bg-[#3b82f6] text-white rounded-xl text-sm font-bold shadow-md shadow-blue-500/20 transition-all hover:translate-x-1">
+          <a href="petugas.php" class="flex items-center space-x-3 px-4 py-3 bg-[#3b82f6] text-white rounded-xl text-sm font-bold shadow-md shadow-blue-500/20 transition-all hover:translate-x-1">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
             <span>Dashboard Petugas</span>
           </a>
-          <a href="#" class="flex items-center space-x-3 px-4 py-3 bg-[#3b82f6] text-white rounded-xl text-sm font-bold shadow-md shadow-blue-500/20 transition-all hover:translate-x-1">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-          </svg>
-          <span>Input Kendaraan Parkir</span>
-        </a>
+          <a href="inputpetugas.php" class="flex items-center space-x-3 px-4 py-3 text-slate-800 hover:bg-white/40 rounded-xl text-sm font-bold transition-all hover:translate-x-1">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span>Input Kendaraan Parkir</span>
+          </a>
         </nav>
       </div>
 
@@ -164,120 +96,106 @@ $total_keluar = mysqli_fetch_assoc($q_keluar)['total'] ?? 0;
       <!-- Main Body -->
       <main class="p-8 space-y-6 max-w-7xl">
 
-        <!-- Kartu Ringkasan Statistik -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <p class="text-sm font-medium text-slate-500">Total Kendaraan Masuk</p>
-            <h3 class="text-3xl font-bold text-blue-600 mt-2" id="statMasuk"><?= $total_masuk; ?></h3>
+        <!-- Kartu Ringkasan Statistik (3 Kolom) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Masuk</p>
+              <h3 class="text-3xl font-bold text-blue-600 mt-1"><?= $total_masuk; ?></h3>
+            </div>
+            <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path></svg>
+            </div>
           </div>
           
-          <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <p class="text-sm font-medium text-slate-500">Total Kendaraan Keluar</p>
-            <h3 class="text-3xl font-bold text-slate-700 mt-2" id="statKeluar"><?= $total_keluar; ?></h3>
+          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Sedang Parkir</p>
+              <h3 class="text-3xl font-bold text-amber-500 mt-1"><?= $total_parkir; ?></h3>
+            </div>
+            <div class="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center text-amber-500">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+          </div>
+
+          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Keluar</p>
+              <h3 class="text-3xl font-bold text-emerald-600 mt-1"><?= $total_keluar; ?></h3>
+            </div>
+            <div class="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+            </div>
           </div>
         </div>
 
-        <?php if ($message != ""): ?>
-          <div class="p-4 bg-red-50 border border-red-200 text-red-700 text-sm font-medium rounded-xl">
-            <?= htmlspecialchars($message); ?>
+        <!-- Banner Aksi Cepat & Pencarian -->
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
+          <div>
+            <h3 class="text-lg font-bold">Input atau Cek Kendaraan Parkir</h3>
+            <p class="text-blue-100 text-sm">Tambahkan data masuk atau verifikasi nomor plat dengan cepat.</p>
           </div>
-        <?php endif; ?>
+          <div class="flex items-center gap-3 w-full md:w-auto">
+            <a href="inputpetugas.php" class="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 rounded-xl text-sm font-bold transition-all shadow-sm whitespace-nowrap text-center w-full md:w-auto">
+              + Input Kendaraan
+            </a>
+          </div>
+        </div>
 
-        <!-- Card Tabel Kendaraan -->
+        <!-- Tabel Kendaraan Terbaru -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          
-          <div class="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100">
+          <div class="p-6 border-b border-slate-100 flex justify-between items-center">
             <div>
-              <h3 class="text-base font-bold text-slate-900">Daftar Kendaraan Parkir Saat Ini</h3>
-              <p class="text-xs text-slate-500 mt-0.5">Kelola transaksi kendaraan masuk dan keluar</p>
+              <h3 class="font-bold text-slate-900">Aktivitas Terakhir</h3>
+              <p class="text-xs text-slate-500">5 Kendaraan terbaru yang tercatat di sistem</p>
             </div>
-
-            <!-- Form Search Input -->
-            <form action="" method="GET" class="flex items-center space-x-2 w-full md:w-auto">
-              <div class="relative w-full md:w-64">
-                <input 
-                  type="text" 
-                  name="search" 
-                  value="<?= htmlspecialchars($search); ?>" 
-                  placeholder="Cari Plat / Jenis..." 
-                  class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-                />
-                <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                </svg>
-              </div>
-              
-              <button type="submit" class="px-3.5 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm">
-                Cari
-              </button>
-
-              <?php if (!empty($search)): ?>
-                <a href="petugas.php" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all">
-                  Reset
-                </a>
-              <?php endif; ?>
-            </form>
           </div>
-
-          <!-- Data Table -->
+          
           <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-              <thead>
-                <tr class="bg-[#bfdbfe] text-slate-900 text-xs font-bold uppercase tracking-wider border-b border-blue-200">
-                  <th class="py-3.5 px-6">No. Plat</th>
-                  <th class="py-3.5 px-6">Jenis</th>
-                  <th class="py-3.5 px-6">Waktu Masuk</th>
-                  <th class="py-3.5 px-6">Waktu Keluar</th>
-                  <th class="py-3.5 px-6 text-center">Aksi</th>
+            <table class="w-full text-left text-sm text-slate-600">
+              <thead class="bg-slate-50 text-xs uppercase font-semibold text-slate-500 border-b border-slate-100">
+                <tr>
+                  <th class="px-6 py-3">Plat Nomor</th>
+                  <th class="px-6 py-3">Jenis</th>
+                  <th class="px-6 py-3">Jam Masuk</th>
+                  <th class="px-6 py-3">Status</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-slate-100 text-xs">
-                <?php if (mysqli_num_rows($query_list) == 0): ?>
-                  <tr>
-                    <td colspan="5" class="py-12 text-center text-slate-500 font-medium">
-                      <?= !empty($search) ? 'Tidak ada data kendaraan yang cocok dengan "' . htmlspecialchars($search) . '"' : 'Belum ada data kendaraan.'; ?>
-                    </td>
-                  </tr>
-                <?php else: ?>
-                  <?php while ($row = mysqli_fetch_assoc($query_list)): ?>
-                    <?php 
-                      $badgeClass = 'bg-amber-50 text-amber-700 border-amber-200';
-                      if ($row['jenis_kendaraan'] == 'Mobil') $badgeClass = 'bg-purple-50 text-purple-700 border-purple-200';
-                      if ($row['jenis_kendaraan'] == 'Truk')  $badgeClass = 'bg-blue-50 text-blue-700 border-blue-200';
-                    ?>
+              <tbody class="divide-y divide-slate-100">
+                <?php if ($q_terbaru && mysqli_num_rows($q_terbaru) > 0): ?>
+                  <?php while ($row = mysqli_fetch_assoc($q_terbaru)): ?>
                     <tr class="hover:bg-slate-50/80 transition-colors">
-                      <td class="py-4 px-6 font-bold text-slate-900 tracking-wide"><?= htmlspecialchars($row['plat_nomor']); ?></td>
-                      <td class="py-4 px-6">
-                        <span class="px-3 py-1 text-[11px] font-bold rounded-lg border <?= $badgeClass; ?>">
-                          <?= htmlspecialchars($row['jenis_kendaraan']); ?>
-                        </span>
+                      <td class="px-6 py-4 font-bold text-slate-900">
+                        <?= htmlspecialchars($row['plat_nomor'] ?? $row['no_plat'] ?? '-'); ?>
                       </td>
-                      <td class="py-4 px-6 font-semibold text-slate-700"><?= date('H:i', strtotime($row['waktu_masuk'])); ?> WIB</td>
-                      <td class="py-4 px-6 font-semibold text-slate-700">
-                        <?= !empty($row['waktu_keluar']) ? date('H:i', strtotime($row['waktu_keluar'])) . ' WIB' : '-'; ?>
+                      <td class="px-6 py-4">
+                        <?= htmlspecialchars($row['jenis_kendaraan'] ?? $row['jenis'] ?? '-'); ?>
                       </td>
-                      <td class="py-4 px-6 text-center">
-                        <?php if ($row['status'] == 'Selesai'): ?>
-                          <span class="inline-block px-3 py-1 bg-slate-100 text-slate-500 rounded-lg font-bold text-[11px]">
-                            Selesai (Rp <?= number_format($row['total_bayar'], 0, ',', '.'); ?>)
-                          </span>
-                        <?php else: ?>
-                          <form action="" method="POST" onsubmit="return confirm('Proses keluar untuk plat <?= $row['plat_nomor']; ?>?')">
-                            <input type="hidden" name="id_kendaraan" value="<?= $row['id_kendaraan']; ?>">
-                            <button type="submit" name="proses_keluar" class="px-3.5 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-bold transition-all shadow-sm shadow-red-500/20 active:scale-95">
-                              Proses Keluar
-                            </button>
-                          </form>
-                        <?php endif; ?>
+                      <td class="px-6 py-4">
+                        <?= htmlspecialchars($row['waktu_masuk'] ?? '-'); ?>
+                      </td>
+                      <td class="px-6 py-4">
+                        <?php 
+                          $status = $row['status'] ?? 'Parkir';
+                          if ($status === 'Selesai' || $status === 'Keluar') {
+                            echo '<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">Keluar</span>';
+                          } else {
+                            echo '<span class="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">Sedang Parkir</span>';
+                          }
+                        ?>
                       </td>
                     </tr>
                   <?php endwhile; ?>
+                <?php else: ?>
+                  <tr>
+                    <td colspan="4" class="px-6 py-8 text-center text-slate-400">Belum ada data kendaraan tercatat.</td>
+                  </tr>
                 <?php endif; ?>
               </tbody>
             </table>
           </div>
-
         </div>
+
       </main>
 
     </div>

@@ -15,12 +15,56 @@ if (isset($_POST['simpan_masuk'])) {
     mysqli_stmt_bind_param($stmt, "sss", $plat_nomor, $jenis_kendaraan, $waktu_masuk);
 
     if (mysqli_stmt_execute($stmt)) {
-        header('Location: petugas.php');
+        header('Location: inputpetugas.php');
         exit();
     }
 
     $message = 'Gagal menyimpan data: ' . mysqli_error($koneksi);
     mysqli_stmt_close($stmt);
+}
+
+if (isset($_POST['proses_keluar'])) {
+    $id_kendaraan = $_POST['id_kendaraan'];
+    $waktu_keluar = date('Y-m-d H:i:s');
+
+    $stmt_get = mysqli_prepare($koneksi, "SELECT * FROM kendaraan WHERE id_kendaraan = ?");
+    mysqli_stmt_bind_param($stmt_get, "i", $id_kendaraan);
+    mysqli_stmt_execute($stmt_get);
+    $data = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_get));
+    mysqli_stmt_close($stmt_get);
+
+    if ($data) {
+        $durasi_jam = max(1, (int) ceil((strtotime($waktu_keluar) - strtotime($data['waktu_masuk'])) / 3600));
+        $tarif = $data['jenis_kendaraan'] === 'Mobil' ? 5000 : ($data['jenis_kendaraan'] === 'Truk' ? 8000 : 2000);
+        $total_bayar = $tarif * $durasi_jam;
+
+        $stmt_bayar = mysqli_prepare($koneksi, "INSERT INTO pembayaran (id_kendaraan, waktu_keluar, durasi_jam, total_bayar) VALUES (?, ?, ?, ?)");
+        mysqli_stmt_bind_param($stmt_bayar, "isii", $id_kendaraan, $waktu_keluar, $durasi_jam, $total_bayar);
+
+        if (mysqli_stmt_execute($stmt_bayar)) {
+            $stmt_update = mysqli_prepare($koneksi, "UPDATE kendaraan SET status = 'Selesai' WHERE id_kendaraan = ?");
+            mysqli_stmt_bind_param($stmt_update, "i", $id_kendaraan);
+            mysqli_stmt_execute($stmt_update);
+            mysqli_stmt_close($stmt_update);
+            header('Location: inputpetugas.php');
+            exit();
+        }
+
+        $message = 'Gagal memproses pembayaran: ' . mysqli_error($koneksi);
+        mysqli_stmt_close($stmt_bayar);
+    }
+}
+
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+if ($search !== '') {
+    $query_sql = "SELECT k.*, p.waktu_keluar, p.total_bayar FROM kendaraan k LEFT JOIN pembayaran p ON k.id_kendaraan = p.id_kendaraan WHERE k.plat_nomor LIKE ? OR k.jenis_kendaraan LIKE ? ORDER BY k.id_kendaraan DESC";
+    $stmt_list = mysqli_prepare($koneksi, $query_sql);
+    $param_search = '%' . $search . '%';
+    mysqli_stmt_bind_param($stmt_list, "ss", $param_search, $param_search);
+    mysqli_stmt_execute($stmt_list);
+    $query_list = mysqli_stmt_get_result($stmt_list);
+} else {
+    $query_list = mysqli_query($koneksi, "SELECT k.*, p.waktu_keluar, p.total_bayar FROM kendaraan k LEFT JOIN pembayaran p ON k.id_kendaraan = p.id_kendaraan ORDER BY k.id_kendaraan DESC");
 }
 ?>
 <!DOCTYPE html>
@@ -100,6 +144,56 @@ if (isset($_POST['simpan_masuk'])) {
               </div>
             </div>
           </form>
+        </div>
+
+        <div class="mt-6 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100">
+            <div>
+              <h3 class="text-base font-bold text-slate-900">Daftar Kendaraan Parkir Saat Ini</h3>
+              <p class="text-xs text-slate-500 mt-0.5">Kelola transaksi kendaraan masuk dan keluar</p>
+            </div>
+            <form action="inputpetugas.php" method="GET" class="flex items-center space-x-2 w-full md:w-auto">
+              <input type="text" name="search" value="<?= htmlspecialchars($search); ?>" placeholder="Cari Plat / Jenis..." class="w-full md:w-64 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <button type="submit" class="px-3.5 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-bold">Cari</button>
+              <?php if ($search !== ''): ?>
+                <a href="inputpetugas.php" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold">Reset</a>
+              <?php endif; ?>
+            </form>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-[#bfdbfe] text-slate-900 text-xs font-bold uppercase tracking-wider border-b border-blue-200">
+                  <th class="py-3.5 px-6">No. Plat</th><th class="py-3.5 px-6">Jenis</th><th class="py-3.5 px-6">Waktu Masuk</th><th class="py-3.5 px-6">Waktu Keluar</th><th class="py-3.5 px-6 text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 text-xs">
+                <?php if (mysqli_num_rows($query_list) === 0): ?>
+                  <tr><td colspan="5" class="py-12 text-center text-slate-500 font-medium"><?= $search !== '' ? 'Tidak ada data kendaraan yang cocok dengan "' . htmlspecialchars($search) . '"' : 'Belum ada data kendaraan.'; ?></td></tr>
+                <?php else: ?>
+                  <?php while ($row = mysqli_fetch_assoc($query_list)): ?>
+                    <?php $badgeClass = $row['jenis_kendaraan'] === 'Mobil' ? 'bg-purple-50 text-purple-700 border-purple-200' : ($row['jenis_kendaraan'] === 'Truk' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-amber-50 text-amber-700 border-amber-200'); ?>
+                    <tr class="hover:bg-slate-50/80 transition-colors">
+                      <td class="py-4 px-6 font-bold text-slate-900"><?= htmlspecialchars($row['plat_nomor']); ?></td>
+                      <td class="py-4 px-6"><span class="px-3 py-1 text-[11px] font-bold rounded-lg border <?= $badgeClass; ?>"><?= htmlspecialchars($row['jenis_kendaraan']); ?></span></td>
+                      <td class="py-4 px-6 font-semibold text-slate-700"><?= date('H:i', strtotime($row['waktu_masuk'])); ?> WIB</td>
+                      <td class="py-4 px-6 font-semibold text-slate-700"><?= !empty($row['waktu_keluar']) ? date('H:i', strtotime($row['waktu_keluar'])) . ' WIB' : '-'; ?></td>
+                      <td class="py-4 px-6 text-center">
+                        <?php if ($row['status'] === 'Selesai'): ?>
+                          <span class="inline-block px-3 py-1 bg-slate-100 text-slate-500 rounded-lg font-bold text-[11px]">Selesai (Rp <?= number_format($row['total_bayar'], 0, ',', '.'); ?>)</span>
+                        <?php else: ?>
+                          <form action="inputpetugas.php" method="POST" onsubmit="return confirm('Proses keluar untuk plat <?= htmlspecialchars($row['plat_nomor'], ENT_QUOTES); ?>?')">
+                            <input type="hidden" name="id_kendaraan" value="<?= $row['id_kendaraan']; ?>">
+                            <button type="submit" name="proses_keluar" class="px-3.5 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-bold">Proses Keluar</button>
+                          </form>
+                        <?php endif; ?>
+                      </td>
+                    </tr>
+                  <?php endwhile; ?>
+                <?php endif; ?>
+              </tbody>
+            </table>
+          </div>
         </div>
       </main>
     </div>
